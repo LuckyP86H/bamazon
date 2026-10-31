@@ -22,6 +22,7 @@
     "staff:local": "bun scripts/local-staff-session.ts",
     "gif": "node scripts/record-gif.ts",
     "deploy": "astro build && wrangler deploy -c dist/server/wrangler.json",
+    "smoke": "node scripts/smoke.ts",
     "validate": "bun run lint && bun run typecheck && bun run test && bun run build && bun run knip && bun run e2e",
     "preview": "astro build && bun run db:reset:preview && wrangler dev -c dist/server/wrangler.json --ip 127.0.0.1 --port 4321",
     "db:reset:preview": "rm -rf dist/server/.wrangler && CI=1 wrangler d1 migrations apply DB --local -c dist/server/wrangler.json && wrangler d1 execute DB --local -c dist/server/wrangler.json --file=seed/products.sql"

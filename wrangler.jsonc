@@ -9,7 +9,7 @@
     {
       "binding": "DB",
       "database_name": "bamazon",
-      "database_id": "REPLACE_WITH_D1_ID",
+      "database_id": "321cbeb1-733d-453c-b686-b1d3d805e729",
       "migrations_dir": "migrations",
     },
   ],
