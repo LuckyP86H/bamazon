@@ -1,0 +1,64 @@
+---
+import "../styles/global.css";
+import { CART_COOKIE, cartCount, decodeCart } from "../lib/cart";
+
+interface Props {
+  title: string;
+  description?: string;
+  staff?: string | null;
+}
+
+const { title, description = "Bamazon: a storefront with a cart, checkout and a back office.", staff = null } = Astro.props;
+const count = cartCount(decodeCart(Astro.cookies.get(CART_COOKIE)?.value));
+const notice = Astro.url.searchParams.get("notice");
+const error = Astro.url.searchParams.get("error");
+const q = Astro.url.searchParams.get("q") ?? "";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{title} · Bamazon</title>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <a class="brand" href="/">
+        <span class="logo" aria-hidden="true">🛒</span>
+        <span>bamazon</span>
+      </a>
+      <form class="search" role="search" action="/" method="get">
+        <label class="sr-only" for="q">Search products</label>
+        <input id="q" name="q" type="search" placeholder="Search books, electronics, kitchen…" value={q} autocomplete="off" />
+        <button type="submit">Search</button>
+      </form>
+      <nav class="nav" aria-label="Main">
+        {staff ? <a href="/manage">Back office</a> : <a href="/login">Staff sign-in</a>}
+        <a class="cart" href="/cart">
+          <span>Cart</span>
+          <span class="badge" data-count={count}>
+            {count}<span class="sr-only"> items</span>
+          </span>
+        </a>
+      </nav>
+    </header>
+
+    <main id="main" tabindex="-1">
+      {notice && <p class="flash ok" role="status">{notice}</p>}
+      {error && <p class="flash bad" role="alert">{error}</p>}
+      <slot />
+    </main>
+
+    <footer class="foot">
+      <p>
+        Bamazon is a demo storefront. No payment is taken and no email is sent. Built with Astro on Cloudflare
+        Workers and D1.
+      </p>
+    </footer>
+  </body>
+</html>

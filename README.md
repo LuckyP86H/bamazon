@@ -1,95 +1,53 @@
 # Bamazon
 
-## Overview
+An Amazon-style storefront with a cart, checkout, a stock manager and department sales. Shoppers browse and buy. Managers restock and add products. Supervisors see profit by department.
 
-This activity is to create an Amazon-like storefront with the MySQL skills you learned this unit. The app will take in orders from customers and deplete stock from the store's inventory. As a bonus task,  Bamazon can be use to track product sales across your store's departments and then provide a summary of the highest-grossing departments in the store.
+![A tour of Bamazon: browsing and searching, the cart, checkout and receipt, staff sign-in, restocking, adding a product, and department profit](docs/bamazon-tour.gif)
 
-## Instructions
+## What's included
 
-### Challenge #1: Customer View 
+- **Shop:** search, department filters, sorting, product pages with live stock ("Only 4 left", "Sold out").
+- **Cart and checkout:** the cart is kept in a signed cookie. Prices and stock are re-checked on the server, so a sale can't oversell, and checkout works with JavaScript turned off.
+- **Receipts:** every order gets a receipt page with a copy of the names and prices at the time of purchase.
+- **Back office (managers):** stock levels, restocking, prices, showing or hiding items, and adding products. Low stock (under 5) is flagged.
+- **Back office (supervisors):** sales, overhead and total profit by department. Profit is calculated when the page loads, never stored.
+- **Staff sign-in:** GitHub OAuth. Only logins on the staff list get in.
+- Accessible (WCAG 2.2 AA is checked in the tests), responsive, light and dark themes, reduced-motion support.
 
-1. Create a MySQL Database called `bamazon`.
+Built with Astro 7 on Cloudflare Workers, D1 for the database, and Zod for validation.
 
-2. Then create a Table inside of that database called `products`.
+## Get started
 
-3. The products table should have each of the following columns:
+You need [Bun](https://bun.sh) 1.4 or later, and Node 22.23.4 or later (`.nvmrc` tracks the latest LTS).
 
-* item_id (unique id for each product)
-* product_name (Name of product)
-* department_name
-* price (cost to customer)
-* stock_quantity (how much of the product is available in stores)
+```sh
+bun install
+bun run dev          # resets the local database, seeds the demo catalogue, and starts the dev server
+```
 
-4. Populate this database with around 10 different products. (i.e. Insert "mock" data rows into this database and table).
+Open http://localhost:4321. To try the back office locally, build and start the app once, then create a local staff session:
 
-5. Then create a Node application called `bamazonCustomer.js`. Running this application will first display all of the items available for sale. Include the ids, names, and prices of products for sale.
+```sh
+bun run preview      # builds the app and serves it with wrangler at http://127.0.0.1:4321
+bun run staff:local  # prints a cookie: paste it into DevTools as bamazon_staff=… to open /manage
+```
 
-6. The app should then prompt users with two messages.
+### Checks
 
-* The first should ask them the ID of the product they would like to buy.
-* The second message should ask how many units of the product they would like to buy.
+```sh
+bun run lint         # oxlint and oxfmt
+bun run typecheck    # astro check
+bun run test         # unit and database tests (real migrations, in-memory SQLite)
+bun run knip         # unused files, exports and dependencies
+bun run e2e          # browser tests on desktop and phone (needs `bunx playwright install chromium`)
+bun run gif          # re-records docs/bamazon-tour.gif (needs ffmpeg)
+```
 
-7. Once the customer has placed the order, your application should check if your store has enough of the product to meet the customer's request.
+### Deploy
 
-* If not, the app should log a phrase like `Insufficient quantity!`, and then prevent the order from going through.
+1. Create a D1 database (`bunx wrangler d1 create bamazon`) and put its ID in `wrangler.jsonc`.
+2. Apply the migrations and seed the catalogue: `bunx wrangler d1 migrations apply bamazon --remote`, then `bunx wrangler d1 execute bamazon --remote --file=seed/products.sql`.
+3. Set the GitHub OAuth app secrets: `bunx wrangler secret put GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. Add `STAFF_GITHUB_LOGINS` as a comma-separated list of staff logins.
+4. Deploy: `bun run deploy`. The built Worker config is in `dist/server/wrangler.json`.
 
-8. However, if the  store _does_ have enough of the product,  the customer's order should be fulfilled
-
-* This means updating the SQL database to reflect the remaining quantity.
-* Once the update goes through, show the customer the total cost of their purchase.
-- - -
-
-### Challenge #2: Manager View (Next Level)
-
-* Create a new Node application called `bamazonManager.js`. Running this application will:
-
-* List a set of menu options:
-* View Products for Sale
-* View Low Inventory
-* Add to Inventory
-* Add New Product
-* If a manager selects `View Products for Sale`, the app should list every available item: the item IDs, names, prices, and quantities.
-* If a manager selects `View Low Inventory`, then it should list all items with an inventory count lower than five.
-* If a manager selects `Add to Inventory`, it should display a prompt that will let the manager "add more" of any item currently in the store.
-
-* If a manager selects `Add New Product`, it should allow the manager to add a completely new product to the store.
-- - -
-
-### Challenge #3: Supervisor View (To be Continue)
-
-1. Create a new MySQL table called `departments`. Your table should include the following columns:
-
-* department_id
-* department_name
-* over_head_costs (A dummy number you set for each department)
-
-2. Modify the products table so that there's a product_sales column, and modify your `bamazonCustomer.js` app so that when a customer purchases anything from the store, the price of the product multiplied by the quantity purchased is added to the product's product_sales column.
-
-* Make sure your app still updates the inventory listed in the `products` column.
-
-3. Create another Node app called `bamazonSupervisor.js`. Running this application will list a set of menu options:
-
-* View Product Sales by Department
-* Create New Department
-
-4. When a supervisor selects `View Product Sales by Department`, the app should display a summarized table in their terminal/bash window. Use the table below as a guide.
-
-| department_id | department_name | over_head_costs | product_sales | total_profit |
-| ------------- | --------------- | --------------- | ------------- | ------------ |
-| 01            | Electronics     | 10000           | 20000         | 10000        |
-| 02            | Clothing        | 60000           | 100000        | 40000        |
-
-5. The `total_profit` column should be calculated on the fly using the difference between `over_head_costs` and `product_sales`. `total_profit` should not be stored in any database. You should use a custom alias.
-
-6. If you can't get the table to display properly after a few hours, then feel free to go back and just add `total_profit` to the `departments` table.
-
-* Hint: You may need to look into aliases in MySQL.
-* Hint: You may need to look into GROUP BYs.
-* Hint: You may need to look into JOINS.
-
-* **HINT**: There may be an NPM package that can log the table to the console. What's is it? Good question :)
-
-- - -
-
-____________________
-<sub> &copy; Paul Xu at Univerversity of Toronto School of Continuing Studies Coding Boot Camp in March 2019 </sub>
+The GitHub OAuth app needs the callback `https://<your-worker>/auth/github/callback`. For local sign-in, use `http://localhost:4321/auth/github/callback`. Copy `.dev.vars.example` to `.dev.vars` to set the values for local development.
