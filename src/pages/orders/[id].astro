@@ -1,0 +1,44 @@
+---
+import Layout from "../../components/Layout.astro";
+import { STAFF_COOKIE, currentStaff } from "../../lib/auth";
+import { getOrder } from "../../lib/db";
+import { formatUsd } from "../../lib/money";
+import { db } from "../../lib/runtime";
+
+const database = db();
+const found = await getOrder(database, Astro.params.id ?? "");
+if (!found) return new Response("Not found", { status: 404 });
+const staff = await currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value);
+const { order, items } = found;
+const placed = new Date(order.created_at).toLocaleString("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "UTC",
+});
+---
+
+<Layout title={`Order ${order.id}`} staff={staff}>
+  <article class="panel receipt" aria-labelledby="receipt-title">
+    <p class="dept">Receipt · order {order.id}</p>
+    <h1 id="receipt-title">Thanks, {order.customer_name.split(" ")[0]}. Your order is in.</h1>
+    <p class="muted">Placed {placed} UTC · a copy goes to {order.customer_email}</p>
+    <table>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col" class="num">Qty</th><th scope="col" class="num">Price</th></tr>
+      </thead>
+      <tbody>
+        {items.map((item) => (
+          <tr>
+            <td>{item.name}</td>
+            <td class="num">{item.quantity}</td>
+            <td class="num">{formatUsd(item.unit_price_cents * item.quantity)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr><th scope="row" colspan="2">Total</th><td class="num"><strong>{formatUsd(order.total_cents)}</strong></td></tr>
+      </tfoot>
+    </table>
+    <p style="margin-top: 20px;"><a class="button" href="/">Keep shopping</a></p>
+  </article>
+</Layout>

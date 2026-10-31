@@ -1,0 +1,25 @@
+---
+import Layout from "../components/Layout.astro";
+import { STAFF_COOKIE, currentStaff } from "../lib/auth";
+import { db, bindings } from "../lib/runtime";
+
+const staff = await currentStaff(db(), Astro.cookies.get(STAFF_COOKIE)?.value);
+if (staff) return Astro.redirect("/manage");
+const configured = Boolean(bindings.GITHUB_CLIENT_ID && bindings.GITHUB_CLIENT_SECRET);
+---
+
+<Layout title="Staff sign-in">
+  <section class="panel" style="max-width: 560px; margin: 24px auto;">
+    <h1>Staff sign-in</h1>
+    <p class="muted">The back office is for managers and supervisors. Sign in with the GitHub account on the staff list.</p>
+    {
+      configured ? (
+        <a class="button" href="/auth/github">Sign in with GitHub</a>
+      ) : (
+        <p class="flash bad" role="status">
+          GitHub sign-in isn't configured on this server yet. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.
+        </p>
+      )
+    }
+  </section>
+</Layout>

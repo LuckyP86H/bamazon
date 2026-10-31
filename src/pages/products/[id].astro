@@ -1,0 +1,48 @@
+---
+import Layout from "../../components/Layout.astro";
+import { STAFF_COOKIE, currentStaff } from "../../lib/auth";
+import { getProduct } from "../../lib/db";
+import { formatUsd } from "../../lib/money";
+import { stockLabel, stockStatus, LOW_STOCK } from "../../lib/stock";
+import { MAX_QUANTITY } from "../../lib/cart";
+import { db } from "../../lib/runtime";
+
+const database = db();
+const product = await getProduct(database, Astro.params.id ?? "");
+if (!product || !product.active) return new Response("Not found", { status: 404 });
+
+const staff = await currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value);
+const status = stockStatus(product.stock);
+const maxBuy = Math.min(MAX_QUANTITY, product.stock);
+---
+
+<Layout title={product.name} description={product.description} staff={staff}>
+  <nav class="muted" aria-label="Breadcrumb"><a href="/">Shop</a> / <a href={`/?dept=${product.department_id}`}>{product.department}</a></nav>
+  <section class="detail" style="margin-top: 16px;">
+    <div class="art" aria-hidden="true">{product.emoji}</div>
+    <div class="panel">
+      <p class="dept">{product.department}</p>
+      <h1>{product.name}</h1>
+      <p class="price">{formatUsd(product.price_cents)}</p>
+      <p class={`stock ${status}`}>{stockLabel(product.stock)}{status === "low" && <> · restock soon</>}</p>
+      <p>{product.description || "No description yet."}</p>
+      {
+        status === "out" ? (
+          <p class="flash bad" role="status">This item is sold out. Check back soon.</p>
+        ) : (
+          <form class="buy" method="post" action="/api/cart">
+            <input type="hidden" name="intent" value="add" />
+            <input type="hidden" name="productId" value={product.id} />
+            <input type="hidden" name="back" value={`/products/${encodeURIComponent(product.id)}`} />
+            <label>
+              Quantity
+              <input type="number" name="quantity" value="1" min="1" max={String(maxBuy)} required />
+            </label>
+            <button type="submit">Add to cart</button>
+          </form>
+        )
+      }
+      <p class="note">Up to {maxBuy} per order. Low-stock threshold: under {LOW_STOCK}.</p>
+    </div>
+  </section>
+</Layout>
