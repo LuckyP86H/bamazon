@@ -41,3 +41,4 @@ for (let attempt = 1; attempt <= attempts; attempt++) {
 
 console.error(`Smoke FAILED for ${url}: ${last}`);
 process.exit(1);
+export {}
