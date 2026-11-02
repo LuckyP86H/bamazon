@@ -45,6 +45,17 @@ describe("checkout", () => {
     });
   });
 
+  test("an order-id collision retries under a fresh id instead of failing", async () => {
+    const { db } = testDb();
+    const first = await checkout(db, { "BOO HP12": 1 }, customer, "ORDER00008");
+    expect(first.ok).toBe(true);
+    // The same ID again: the batch rolls back and checkout retries with a new ID.
+    const second = await checkout(db, { "BOO HP12": 1 }, customer, "ORDER00008");
+    expect(second.ok).toBe(true);
+    if (second.ok) expect(second.orderId).not.toBe("ORDER00008");
+    expect((await getProduct(db, "BOO HP12"))?.stock).toBe(8);
+  });
+
   test("order ids are ten characters from an unambiguous alphabet", () => {
     for (let i = 0; i < 50; i++) {
       expect(newOrderId()).toMatch(/^[23456789A-HJ-NP-Z]{10}$/);

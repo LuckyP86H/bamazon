@@ -5,6 +5,9 @@ import { placeOrder, productsByIds, type Db, type NewOrderLine } from "./db";
 // No 0/O or 1/I, so an order number can be read out loud or typed from a receipt.
 const ORDER_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
+// How many order IDs to try before giving up on a collision (each attempt rolls back cleanly).
+const ORDER_ID_ATTEMPTS = 3;
+
 export function newOrderId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(10));
   return [...bytes].map((byte) => ORDER_ALPHABET[byte % ORDER_ALPHABET.length]).join("");
@@ -46,23 +49,34 @@ export async function checkout(
     unitPriceCents: line.product.priceCents,
     quantity: line.quantity,
   }));
-  try {
-    await placeOrder(db, {
-      id: orderId,
-      customerName: customer.name,
-      customerEmail: customer.email,
-      lines,
-      totalCents: cart.totalCents,
-    });
-  } catch (error) {
-    // The CHECK constraint rejected a stock or availability change that happened mid-checkout.
-    if (String(error).includes("CHECK constraint")) {
-      return {
-        ok: false,
-        message: "Stock changed while you were checking out. Please review your cart.",
-      };
+  let id = orderId;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await placeOrder(db, {
+        id,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        lines,
+        totalCents: cart.totalCents,
+      });
+      return { ok: true, orderId: id, totalCents: cart.totalCents };
+    } catch (error) {
+      // The CHECK constraint rejected a stock or availability change that happened mid-checkout.
+      if (String(error).includes("CHECK constraint")) {
+        return {
+          ok: false,
+          message: "Stock changed while you were checking out. Please review your cart.",
+        };
+      }
+      if (!String(error).includes("UNIQUE constraint")) throw error;
+      // The order ID is already taken. The batch rolled back, so a fresh ID can simply retry.
+      if (attempt >= ORDER_ID_ATTEMPTS) {
+        return {
+          ok: false,
+          message: "Something went wrong placing your order. Please try again.",
+        };
+      }
+      id = newOrderId();
     }
-    throw error;
   }
-  return { ok: true, orderId, totalCents: cart.totalCents };
 }

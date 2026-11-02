@@ -7,7 +7,7 @@ An Amazon-style storefront with a cart, checkout, a stock manager and department
 ## What's included
 
 - **Shop:** search, department filters, sorting, product pages with live stock ("Only 4 left", "Sold out").
-- **Cart and checkout:** the cart is kept in a signed cookie. Prices and stock are re-checked on the server, so a sale can't oversell, and checkout works with JavaScript turned off.
+- **Cart and checkout:** the cart is kept in a cookie holding only product IDs and quantities. Prices and stock are re-read from the database on the server at every step, so editing the cookie gains nothing and a sale can't oversell, and checkout works with JavaScript turned off.
 - **Receipts:** every order gets a receipt page with a copy of the names and prices at the time of purchase.
 - **Back office (managers):** stock levels, restocking, prices, showing or hiding items, and adding products. Low stock (under 5) is flagged.
 - **Back office (supervisors):** sales, overhead and total profit by department. Profit is calculated when the page loads, never stored.

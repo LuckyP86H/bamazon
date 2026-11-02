@@ -11,7 +11,11 @@ export const checkoutForm = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
 });
 
-export const quantityField = z.coerce.number().int().min(0).max(MAX_QUANTITY);
+export const quantityField = z.coerce
+  .number({ error: "Enter a quantity, like 2" })
+  .int({ error: "Quantities are whole numbers, no fractions" })
+  .min(0, { error: "Quantity can't be less than zero" })
+  .max(MAX_QUANTITY, { error: `You can order at most ${MAX_QUANTITY} of one item` });
 
 export const restockForm = z.object({
   productId: text(30),

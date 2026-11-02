@@ -5,6 +5,7 @@ import {
   addDepartment,
   addProduct,
   adjustStock,
+  listDepartments,
   setActive,
   setOverhead,
   setPrice,
@@ -63,6 +64,9 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
     case "product": {
       const parsed = readForm(newProductForm, form);
       if (!parsed.ok) return fail(parsed.message);
+      const departments = await listDepartments(conn);
+      if (!departments.some((department) => department.id === parsed.data.departmentId))
+        return fail("That department doesn't exist.");
       try {
         await addProduct(conn, {
           id: parsed.data.id,

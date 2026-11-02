@@ -11,5 +11,8 @@ const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(to
 const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 const expires = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-await $`bunx wrangler d1 execute DB --local -c dist/server/wrangler.json --command ${`INSERT INTO staff_sessions (token_hash, github_login, expires_at) VALUES ('${hash}', 'local-staff', ${expires})`}`.quiet();
+// Go through the Bun runtime that is running this script, not a `bunx` binary on PATH:
+// single-binary Bun installs ship no `bunx` shim.
+const bun = process.execPath;
+await $`${bun} x wrangler d1 execute DB --local -c dist/server/wrangler.json --command ${`INSERT INTO staff_sessions (token_hash, github_login, expires_at) VALUES ('${hash}', 'local-staff', ${expires})`}`.quiet();
 console.log(`bamazon_staff=${token}`);

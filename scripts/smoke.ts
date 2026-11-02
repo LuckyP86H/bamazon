@@ -1,7 +1,7 @@
 // Post-deploy smoke test: poll the deployed storefront until it answers
 // HTTP 200 and serves the real shop page (hero copy + a seeded product),
-// or fail after ~2 minutes. Run by .github/workflows/deploy.yml; can also
-// be run by hand:  SMOKE_URL=https://… bun run smoke
+// or fail after ~2 minutes. Run by hand after a deploy (see the Deploy
+// steps in the README):  SMOKE_URL=https://… bun run smoke
 //
 // Exit codes: 0 = healthy, 1 = never became healthy, 2 = SMOKE_URL unset.
 
