@@ -35,4 +35,12 @@ export const bindings = env as unknown as {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   STAFF_GITHUB_LOGINS?: string;
+  /** AI features (see src/lib/ai.ts and src/lib/judge.ts). All optional; unset means fallback. */
+  AI_PROVIDER?: string;
+  AI_BASE_URL?: string;
+  AI_MODEL?: string;
+  AI_API_KEY?: string;
+  TYPESAFE_API_KEY?: string;
+  TYPESAFE_BASE_URL?: string;
+  TYPESAFE_MODEL?: string;
 };

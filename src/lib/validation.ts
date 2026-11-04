@@ -45,6 +45,12 @@ export const newProductForm = z.object({
   stock: z.coerce.number().int().min(0).max(100_000),
 });
 
+/** The description-draft form: just enough for the drafting module to work with. */
+export const draftForm = z.object({
+  name: text(120),
+  departmentId: z.coerce.number().int().positive(),
+});
+
 export const priceForm = z.object({
   productId: text(30),
   priceCents: z.string().transform((value, ctx) => {
