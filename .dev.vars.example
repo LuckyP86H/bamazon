@@ -1,0 +1,6 @@
+# Copy to .dev.vars (git-ignored) to sign staff in locally with GitHub.
+# Register the callback http://localhost:4321/auth/github/callback on a GitHub OAuth app.
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+# Comma-separated GitHub logins that may open the back office (managers and supervisors).
+STAFF_GITHUB_LOGINS=

@@ -1,0 +1,128 @@
+---
+import Layout from "../../components/Layout.astro";
+import { STAFF_COOKIE, currentStaff } from "../../lib/auth";
+import { departmentSummary, listDepartments, listProducts, lowStock } from "../../lib/db";
+import { LOW_STOCK, stockStatus } from "../../lib/stock";
+import { formatUsd } from "../../lib/money";
+import { db } from "../../lib/runtime";
+
+const database = db();
+const staff = await currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value);
+if (!staff) return Astro.redirect("/login");
+
+const [products, low, departments, summary] = await Promise.all([
+  listProducts(database, { includeInactive: true, sort: "stock-asc" }),
+  lowStock(database, LOW_STOCK),
+  listDepartments(database),
+  departmentSummary(database),
+]);
+const salesCents = summary.reduce((sum, row) => sum + row.sales_cents, 0);
+const unitsOnShelf = products.reduce((sum, product) => sum + product.stock, 0);
+---
+
+<Layout title="Back office" staff={staff}>
+  <p class="dept">Back office · managers</p>
+  <h1>Inventory</h1>
+  <p class="muted">
+    Signed in as {staff}.
+    <form method="post" action="/logout" class="inline" style="display: inline;">
+      <button type="submit" class="ghost">Sign out</button>
+    </form>
+  </p>
+
+  <dl class="stat-row">
+    <div class="stat"><dt>Products</dt><dd>{products.length}</dd></div>
+    <div class="stat"><dt>Units on shelf</dt><dd>{unitsOnShelf}</dd></div>
+    <div class="stat"><dt>Low stock</dt><dd>{low.length}</dd></div>
+    <div class="stat"><dt>Lifetime sales</dt><dd>{formatUsd(salesCents)}</dd></div>
+  </dl>
+
+  {low.length > 0 && (
+    <section class="panel" aria-labelledby="low-title" style="margin-bottom: 20px;">
+      <h2 id="low-title">Low stock (under {LOW_STOCK})</h2>
+      <ul>
+        {low.map((product) => (
+          <li>{product.emoji} {product.name}: <strong>{product.stock}</strong> left</li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <div class="scroll">
+    <table aria-label="All products">
+      <thead>
+        <tr>
+          <th scope="col">Product</th>
+          <th scope="col">Department</th>
+          <th scope="col" class="num">Price</th>
+          <th scope="col" class="num">Stock</th>
+          <th scope="col">Restock</th>
+          <th scope="col">Listing</th>
+        </tr>
+      </thead>
+      <tbody>
+        {products.map((product) => {
+          const status = stockStatus(product.stock);
+          return (
+            <tr data-stock={status}>
+              <td>
+                <span aria-hidden="true">{product.emoji}</span> {product.name}
+                <br /><small class="muted">{product.id}</small>
+              </td>
+              <td>{product.department}</td>
+              <td class="num">
+                <form method="post" action="/api/manage/price" class="inline">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input type="hidden" name="back" value="/manage" />
+                  <label class="sr-only" for={`price-${product.id}`}>New price for {product.name}</label>
+                  <input id={`price-${product.id}`} name="priceCents" inputmode="decimal" value={(product.price_cents / 100).toFixed(2)} />
+                  <button type="submit" class="ghost">Save</button>
+                </form>
+              </td>
+              <td class={`num stock ${status}`}>{product.stock}</td>
+              <td>
+                <form method="post" action="/api/manage/restock" class="inline">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input type="hidden" name="back" value="/manage" />
+                  <label class="sr-only" for={`delta-${product.id}`}>Units to add or remove for {product.name}</label>
+                  <input id={`delta-${product.id}`} name="delta" type="number" value="10" step="1" />
+                  <button type="submit">Update</button>
+                </form>
+              </td>
+              <td>
+                <form method="post" action="/api/manage/listing" class="inline">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input type="hidden" name="active" value={product.active ? "0" : "1"} />
+                  <input type="hidden" name="back" value="/manage" />
+                  <button type="submit" class={product.active ? "ghost" : ""}>
+                    {product.active ? "Hide from shop" : "Show in shop"}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+
+  <section class="panel" aria-labelledby="new-title" style="margin-top: 28px; max-width: 760px;">
+    <h2 id="new-title">Add a product</h2>
+    <form method="post" action="/api/manage/product" class="grid-form">
+      <input type="hidden" name="back" value="/manage" />
+      <div class="field"><label for="sku">SKU</label><input id="sku" name="id" required maxlength="30" placeholder="BOO NEW01" /></div>
+      <div class="field"><label for="pname">Name</label><input id="pname" name="name" required maxlength="120" /></div>
+      <div class="field wide"><label for="pdesc">Description</label><input id="pdesc" name="description" maxlength="1000" /></div>
+      <div class="field"><label for="emoji">Emoji</label><input id="emoji" name="emoji" value="📦" maxlength="8" /></div>
+      <div class="field">
+        <label for="dept">Department</label>
+        <select id="dept" name="departmentId" required>
+          {departments.map((department) => <option value={String(department.id)}>{department.name}</option>)}
+        </select>
+      </div>
+      <div class="field"><label for="price">Price (USD)</label><input id="price" name="priceCents" inputmode="decimal" required placeholder="12.50" /></div>
+      <div class="field"><label for="stock">Opening stock</label><input id="stock" name="stock" type="number" min="0" value="10" required /></div>
+      <div><button type="submit">Add product</button></div>
+    </form>
+  </section>
+</Layout>

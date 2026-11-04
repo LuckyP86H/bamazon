@@ -1,0 +1,54 @@
+---
+import Layout from "../components/Layout.astro";
+import { CART_COOKIE, decodeCart } from "../lib/cart";
+import { priceCart, toPriced } from "../lib/cart-lines";
+import { STAFF_COOKIE, currentStaff } from "../lib/auth";
+import { productsByIds } from "../lib/db";
+import { formatUsd } from "../lib/money";
+import { db } from "../lib/runtime";
+
+const database = db();
+const items = decodeCart(Astro.cookies.get(CART_COOKIE)?.value);
+const [products, staff] = await Promise.all([
+  productsByIds(database, Object.keys(items)).then((rows) => rows.map(toPriced)),
+  currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value),
+]);
+const cart = priceCart(items, products);
+if (cart.lines.length === 0) return Astro.redirect("/cart");
+---
+
+<Layout title="Checkout" staff={staff}>
+  <h1>Checkout</h1>
+  <div class="cols">
+    <form class="panel" method="post" action="/api/checkout">
+      <h2>Your details</h2>
+      <p class="note" style="margin: 6px 0 16px;">We use these only to show your receipt. Nothing is charged.</p>
+      <div class="field">
+        <label for="name">Full name</label>
+        <input id="name" name="name" type="text" autocomplete="name" required maxlength="80" />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" />
+      </div>
+      <button type="submit">Place order · {formatUsd(cart.totalCents)}</button>
+    </form>
+
+    <aside class="panel summary" aria-labelledby="review-title">
+      <h2 id="review-title">Review</h2>
+      <ul class="lines" style="margin: 12px 0;">
+        {cart.lines.map((line) => (
+          <li class="line" style="grid-template-columns: 40px 1fr auto;">
+            <span class="thumb" aria-hidden="true">{line.product.emoji}</span>
+            <span>{line.product.name} × {line.quantity}</span>
+            <span>{formatUsd(line.lineCents)}</span>
+          </li>
+        ))}
+      </ul>
+      <dl>
+        <dt class="total">Total</dt>
+        <dd class="total">{formatUsd(cart.totalCents)}</dd>
+      </dl>
+    </aside>
+  </div>
+</Layout>

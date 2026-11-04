@@ -1,0 +1,85 @@
+---
+import Layout from "../../components/Layout.astro";
+import { STAFF_COOKIE, currentStaff } from "../../lib/auth";
+import { departmentSummary } from "../../lib/db";
+import { formatUsd } from "../../lib/money";
+import { db } from "../../lib/runtime";
+
+const database = db();
+const staff = await currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value);
+if (!staff) return Astro.redirect("/login");
+
+// Profit is calculated from sales and overhead on every visit. Nothing about it is stored.
+const rows = await departmentSummary(database);
+const totals = rows.reduce(
+  (sum, row) => ({
+    sales: sum.sales + row.sales_cents,
+    overhead: sum.overhead + row.overhead_cents,
+    profit: sum.profit + row.profit_cents,
+  }),
+  { sales: 0, overhead: 0, profit: 0 },
+);
+const signed = (cents: number) => (cents < 0 ? `−${formatUsd(-cents)}` : formatUsd(cents));
+---
+
+<Layout title="Department sales" staff={staff}>
+  <p class="dept">Back office · supervisors</p>
+  <h1>Department sales</h1>
+  <p class="muted">Profit is sales minus overhead, worked out each time you load this page.</p>
+
+  <div class="scroll" style="margin-top: 16px;">
+    <table aria-label="Product sales by department">
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">Department</th>
+          <th scope="col" class="num">Products</th>
+          <th scope="col" class="num">Overhead</th>
+          <th scope="col" class="num">Product sales</th>
+          <th scope="col" class="num">Total profit</th>
+          <th scope="col">Update overhead</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr>
+            <td>{String(row.id).padStart(2, "0")}</td>
+            <td>{row.name}</td>
+            <td class="num">{row.product_count}</td>
+            <td class="num">{formatUsd(row.overhead_cents)}</td>
+            <td class="num">{formatUsd(row.sales_cents)}</td>
+            <td class={`num profit ${row.profit_cents < 0 ? "neg" : "pos"}`}>{signed(row.profit_cents)}</td>
+            <td>
+              <form method="post" action="/api/manage/overhead" class="inline">
+                <input type="hidden" name="departmentId" value={String(row.id)} />
+                <input type="hidden" name="back" value="/manage/departments" />
+                <label class="sr-only" for={`overhead-${row.id}`}>Overhead for {row.name}</label>
+                <input id={`overhead-${row.id}`} name="overheadCents" inputmode="decimal" value={(row.overhead_cents / 100).toFixed(2)} />
+                <button type="submit" class="ghost">Save</button>
+              </form>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row" colspan="3">All departments</th>
+          <td class="num">{formatUsd(totals.overhead)}</td>
+          <td class="num">{formatUsd(totals.sales)}</td>
+          <td class={`num profit ${totals.profit < 0 ? "neg" : "pos"}`}>{signed(totals.profit)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <section class="panel" aria-labelledby="new-dept" style="margin-top: 28px; max-width: 640px;">
+    <h2 id="new-dept">Create a department</h2>
+    <form method="post" action="/api/manage/department" class="grid-form three">
+      <input type="hidden" name="back" value="/manage/departments" />
+      <div class="field"><label for="dname">Name</label><input id="dname" name="name" required maxlength="60" /></div>
+      <div class="field"><label for="doh">Overhead (USD)</label><input id="doh" name="overheadCents" inputmode="decimal" required placeholder="10000" /></div>
+      <div><button type="submit">Create</button></div>
+    </form>
+  </section>
+</Layout>

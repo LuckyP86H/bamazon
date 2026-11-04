@@ -1,0 +1,41 @@
+---
+import { stockLabel, stockStatus } from "../lib/stock";
+import { formatUsd } from "../lib/money";
+import type { ProductRow } from "../lib/db";
+
+interface Props {
+  product: ProductRow;
+}
+
+const { product } = Astro.props;
+const status = stockStatus(product.stock);
+---
+
+<article class="card" data-stock={status}>
+  <a class="art" href={`/products/${encodeURIComponent(product.id)}`} tabindex="-1" aria-hidden="true">
+    {product.emoji}
+  </a>
+  <div class="body">
+    <p class="dept">{product.department}</p>
+    <h2 class="name">
+      <a href={`/products/${encodeURIComponent(product.id)}`}>{product.name}</a>
+    </h2>
+    <p class="price">{formatUsd(product.price_cents)}</p>
+    <p class={`stock ${status}`}>{stockLabel(product.stock)}</p>
+    {
+      status === "out" ? (
+        <button type="button" disabled>
+          Sold out
+        </button>
+      ) : (
+        <form method="post" action="/api/cart">
+          <input type="hidden" name="intent" value="add" />
+          <input type="hidden" name="productId" value={product.id} />
+          <input type="hidden" name="quantity" value="1" />
+          <input type="hidden" name="back" value="/" />
+          <button type="submit">Add to cart</button>
+        </form>
+      )
+    }
+  </div>
+</article>

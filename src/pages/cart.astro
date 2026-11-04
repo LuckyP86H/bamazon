@@ -1,0 +1,87 @@
+---
+import Layout from "../components/Layout.astro";
+import { CART_COOKIE, decodeCart } from "../lib/cart";
+import { overStock, priceCart, toPriced } from "../lib/cart-lines";
+import { STAFF_COOKIE, currentStaff } from "../lib/auth";
+import { productsByIds } from "../lib/db";
+import { formatUsd } from "../lib/money";
+import { db } from "../lib/runtime";
+
+const database = db();
+const items = decodeCart(Astro.cookies.get(CART_COOKIE)?.value);
+const [products, staff] = await Promise.all([
+  productsByIds(database, Object.keys(items)).then((rows) => rows.map(toPriced)),
+  currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value),
+]);
+const cart = priceCart(items, products);
+const short = overStock(cart);
+const canCheckout = cart.lines.length > 0 && short.length === 0;
+---
+
+<Layout title="Your cart" staff={staff}>
+  <h1>Your cart</h1>
+
+  {
+    cart.lines.length === 0 ? (
+      <p class="empty">
+        Your cart is empty. <a href="/">Find something you like</a>.
+      </p>
+    ) : (
+      <div class="cols">
+        <ul class="lines" aria-label="Items in your cart">
+          {cart.lines.map((line) => (
+            <li class="line">
+              <span class="thumb" aria-hidden="true">{line.product.emoji}</span>
+              <div class="meta">
+                <a href={`/products/${encodeURIComponent(line.product.id)}`}><strong>{line.product.name}</strong></a>
+                <span class="muted">{formatUsd(line.product.priceCents)} each · {formatUsd(line.lineCents)}</span>
+                {line.quantity > line.product.stock && (
+                  <span class="stock low">Only {line.product.stock} left. Lower the quantity to check out.</span>
+                )}
+              </div>
+              <div class="actions">
+                <form method="post" action="/api/cart" class="inline">
+                  <input type="hidden" name="intent" value="set" />
+                  <input type="hidden" name="productId" value={line.product.id} />
+                  <input type="hidden" name="back" value="/cart" />
+                  <label class="sr-only" for={`qty-${line.product.id}`}>Quantity for {line.product.name}</label>
+                  <input id={`qty-${line.product.id}`} type="number" name="quantity" min="0" max="99" value={String(line.quantity)} />
+                  <button type="submit" class="ghost">Update</button>
+                </form>
+                <form method="post" action="/api/cart">
+                  <input type="hidden" name="intent" value="remove" />
+                  <input type="hidden" name="productId" value={line.product.id} />
+                  <input type="hidden" name="back" value="/cart" />
+                  <button type="submit" class="danger">Remove</button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <aside class="panel summary" aria-labelledby="summary-title">
+          <h2 id="summary-title">Order summary</h2>
+          <dl>
+            <dt>Items</dt>
+            <dd>{cart.lines.reduce((sum, line) => sum + line.quantity, 0)}</dd>
+            <dt class="total">Total</dt>
+            <dd class="total">{formatUsd(cart.totalCents)}</dd>
+          </dl>
+          {cart.unavailable.length > 0 && (
+            <p class="note">Some items are no longer available and are not included.</p>
+          )}
+          {canCheckout ? (
+            <a class="button" href="/checkout">Checkout</a>
+          ) : (
+            <button type="button" disabled>Checkout</button>
+          )}
+          <form method="post" action="/api/cart" style="margin-top: 12px;">
+            <input type="hidden" name="intent" value="clear" />
+            <input type="hidden" name="back" value="/cart" />
+            <button type="submit" class="ghost">Empty cart</button>
+          </form>
+        </aside>
+      </div>
+    )
+  }
+</Layout>

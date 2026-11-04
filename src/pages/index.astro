@@ -1,0 +1,86 @@
+---
+import Layout from "../components/Layout.astro";
+import ProductCard from "../components/ProductCard.astro";
+import { STAFF_COOKIE, currentStaff } from "../lib/auth";
+import { isSortKey, listDepartments, listProducts } from "../lib/db";
+import { db } from "../lib/runtime";
+
+const database = db();
+const q = Astro.url.searchParams.get("q") ?? "";
+const sortParam = Astro.url.searchParams.get("sort") ?? "featured";
+const sort = isSortKey(sortParam) ? sortParam : "featured";
+const deptParam = Number(Astro.url.searchParams.get("dept"));
+const departmentId = Number.isInteger(deptParam) && deptParam > 0 ? deptParam : undefined;
+
+const [products, departments, staff] = await Promise.all([
+  listProducts(database, { search: q, departmentId, sort }),
+  listDepartments(database),
+  currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value),
+]);
+const allHref = (extra: Record<string, string | undefined>) => {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (sort !== "featured") params.set("sort", sort);
+  for (const [key, value] of Object.entries(extra)) {
+    if (value) params.set(key, value);
+    else params.delete(key);
+  }
+  const text = params.toString();
+  return text ? `/?${text}` : "/";
+};
+---
+
+<Layout title="Shop" staff={staff}>
+  <section class="hero" aria-labelledby="hero-title">
+    <h1 id="hero-title">Everything you were looking for, in one cart.</h1>
+    <p>Electronics, books, clothing, kitchen and sports. Prices are final and stock is live.</p>
+  </section>
+
+  <nav class="chips" aria-label="Departments">
+    <a class="chip" href={allHref({ dept: undefined })} aria-current={departmentId === undefined ? "true" : undefined}>All</a>
+    {
+      departments.map((department) => (
+        <a
+          class="chip"
+          href={allHref({ dept: String(department.id) })}
+          aria-current={departmentId === department.id ? "true" : undefined}
+        >
+          {department.name}
+        </a>
+      ))
+    }
+  </nav>
+
+  <div class="toolbar">
+    <p class="muted" aria-live="polite">
+      {products.length} {products.length === 1 ? "product" : "products"}
+      {q && <> matching “{q}”</>}
+    </p>
+    <form method="get" action="/" class="inline">
+      {q && <input type="hidden" name="q" value={q} />}
+      {departmentId && <input type="hidden" name="dept" value={String(departmentId)} />}
+      <label for="sort" class="sr-only">Sort by</label>
+      <select id="sort" name="sort">
+        <option value="featured" selected={sort === "featured"}>Featured</option>
+        <option value="price-asc" selected={sort === "price-asc"}>Price: low to high</option>
+        <option value="price-desc" selected={sort === "price-desc"}>Price: high to low</option>
+        <option value="stock-asc" selected={sort === "stock-asc"}>Stock: lowest first</option>
+      </select>
+      <button type="submit" class="ghost">Sort</button>
+    </form>
+  </div>
+
+  {
+    products.length === 0 ? (
+      <p class="empty">No products match. Try another search or <a href="/">clear the filters</a>.</p>
+    ) : (
+      <ul class="grid">
+        {products.map((product) => (
+          <li>
+            <ProductCard product={product} />
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</Layout>

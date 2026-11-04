@@ -1,24 +1,51 @@
 {
-  "name": "amazon-like-storefront-mysql",
-  "version": "1.0.0",
-  "description": "",
-  "main": "bamazonCustomer.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/LuckyP86H/bamazon.git"
-  },
-  "author": "Paul Xu",
+  "name": "bamazon",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Bamazon: an Amazon-like storefront with a cart, checkout, a stock manager and department sales, on Astro and Cloudflare Workers.",
   "license": "MIT",
-  "homepage": "https://github.com/LuckyP86H/bamazon.git",
+  "author": "Paul Xu",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run db:reset:local && astro dev",
+    "build": "astro build",
+    "typecheck": "astro check",
+    "lint": "oxlint --deny-warnings && oxfmt --check",
+    "format": "oxfmt",
+    "test": "bun test tests",
+    "e2e": "playwright test",
+    "knip": "knip",
+    "cf-typegen": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:seed:local": "wrangler d1 execute DB --local --file=seed/products.sql",
+    "db:reset:local": "rm -rf .wrangler/state && CI=1 wrangler d1 migrations apply DB --local && wrangler d1 execute DB --local --file=seed/products.sql",
+    "staff:local": "bun scripts/local-staff-session.ts",
+    "gif": "node scripts/record-gif.ts",
+    "deploy": "astro build && wrangler deploy -c dist/server/wrangler.json",
+    "smoke": "node scripts/smoke.ts",
+    "validate": "bun run lint && bun run typecheck && bun run test && bun run build && bun run knip && bun run e2e",
+    "preview": "astro build && bun run db:reset:preview && wrangler dev -c dist/server/wrangler.json --ip 127.0.0.1 --port 4321",
+    "db:reset:preview": "rm -rf dist/server/.wrangler && CI=1 wrangler d1 migrations apply DB --local -c dist/server/wrangler.json && wrangler d1 execute DB --local -c dist/server/wrangler.json --file=seed/products.sql"
+  },
   "dependencies": {
-    "cli-table": "^0.3.1",
-    "colors": "^1.1.2",
-    "inquirer": "^3.3.0",
-    "mysql": "^2.15.0",
-    "save": "^2.3.1",
-    "word-wrap": "^1.2.3"
-  }
+    "@astrojs/cloudflare": "^14.4.3",
+    "arctic": "^3.7.0",
+    "astro": "^7.4.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
+    "@types/bun": "^1.4.4",
+    "knip": "^6.44.0",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "typescript": "~6.0.3",
+    "wrangler": "^4.156.0"
+  },
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "packageManager": "bun@1.4.4"
 }
