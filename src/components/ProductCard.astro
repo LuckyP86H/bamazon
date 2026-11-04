@@ -16,7 +16,7 @@ const status = stockStatus(product.stock);
     {product.emoji}
   </a>
   <div class="body">
-    <p class="dept">{product.department}</p>
+    <p class="dept">{product.department}{product.featured === 1 && <> · <strong>Deal of the day</strong></>}</p>
     <h2 class="name">
       <a href={`/products/${encodeURIComponent(product.id)}`}>{product.name}</a>
     </h2>

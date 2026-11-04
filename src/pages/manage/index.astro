@@ -18,11 +18,26 @@ const [products, low, departments, summary] = await Promise.all([
 ]);
 const salesCents = summary.reduce((sum, row) => sum + row.sales_cents, 0);
 const unitsOnShelf = products.reduce((sum, product) => sum + product.stock, 0);
+
+// A description draft arrives as query params (see the "draft" manage action) and
+// simply prefills the add-product form. Nothing is saved until the manager submits it.
+const draft = {
+  name: Astro.url.searchParams.get("dname") ?? "",
+  description: Astro.url.searchParams.get("ddesc") ?? "",
+  emoji: Astro.url.searchParams.get("demoji") ?? "",
+  departmentId: Number(Astro.url.searchParams.get("ddept")) || undefined,
+  source: Astro.url.searchParams.get("dsrc"),
+  provider: Astro.url.searchParams.get("dprov"),
+};
 ---
 
 <Layout title="Back office" staff={staff}>
   <p class="dept">Back office · managers</p>
   <h1>Inventory</h1>
+  <p class="muted">
+    <a href="/manage/merchandising">Merchandising — restock urgency, deal of the day, order drafts</a>
+    · <a href="/manage/departments">Department sales</a>
+  </p>
   <p class="muted">
     Signed in as {staff}.
     <form method="post" action="/logout" class="inline" style="display: inline;">
@@ -108,16 +123,42 @@ const unitsOnShelf = products.reduce((sum, product) => sum + product.stock, 0);
 
   <section class="panel" aria-labelledby="new-title" style="margin-top: 28px; max-width: 760px;">
     <h2 id="new-title">Add a product</h2>
+    <form method="post" action="/api/manage/draft" class="grid-form" style="margin-bottom: 16px;">
+      <input type="hidden" name="back" value="/manage" />
+      <div class="field"><label for="dname">Name (for the draft)</label><input id="dname" name="name" required maxlength="120" value={draft.name} /></div>
+      <div class="field">
+        <label for="ddept">Department (for the draft)</label>
+        <select id="ddept" name="departmentId" required>
+          {departments.map((department) => <option value={String(department.id)} selected={draft.departmentId === department.id}>{department.name}</option>)}
+        </select>
+      </div>
+      <div><button type="submit" class="ghost">Draft the description</button></div>
+    </form>
+    {
+      draft.source === "llm" && (
+        <p class="flash ok" role="status">
+          Draft by {draft.provider}. Nothing is saved yet — edit it below, then add the product.
+        </p>
+      )
+    }
+    {
+      draft.source === "fallback" && (
+        <p class="flash" role="status">
+          Template draft — smart drafting isn't switched on for this store, so this is a
+          skeleton, not finished copy. Rewrite it in your own words below, then add the product.
+        </p>
+      )
+    }
     <form method="post" action="/api/manage/product" class="grid-form">
       <input type="hidden" name="back" value="/manage" />
       <div class="field"><label for="sku">SKU</label><input id="sku" name="id" required maxlength="30" placeholder="BOO NEW01" /></div>
-      <div class="field"><label for="pname">Name</label><input id="pname" name="name" required maxlength="120" /></div>
-      <div class="field wide"><label for="pdesc">Description</label><input id="pdesc" name="description" maxlength="1000" /></div>
-      <div class="field"><label for="emoji">Emoji</label><input id="emoji" name="emoji" value="📦" maxlength="8" /></div>
+      <div class="field"><label for="pname">Name</label><input id="pname" name="name" required maxlength="120" value={draft.name} /></div>
+      <div class="field wide"><label for="pdesc">Description</label><input id="pdesc" name="description" maxlength="1000" value={draft.description} /></div>
+      <div class="field"><label for="emoji">Emoji</label><input id="emoji" name="emoji" value={draft.emoji || "📦"} maxlength="8" /></div>
       <div class="field">
         <label for="dept">Department</label>
         <select id="dept" name="departmentId" required>
-          {departments.map((department) => <option value={String(department.id)}>{department.name}</option>)}
+          {departments.map((department) => <option value={String(department.id)} selected={draft.departmentId === department.id}>{department.name}</option>)}
         </select>
       </div>
       <div class="field"><label for="price">Price (USD)</label><input id="price" name="priceCents" inputmode="decimal" required placeholder="12.50" /></div>

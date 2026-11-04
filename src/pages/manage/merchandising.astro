@@ -1,0 +1,142 @@
+---
+import Layout from "../../components/Layout.astro";
+import { STAFF_COOKIE, currentStaff } from "../../lib/auth";
+import { buildPanel } from "../../lib/merchandising";
+import { formatUsd } from "../../lib/money";
+import { bindings, db } from "../../lib/runtime";
+
+const database = db();
+const staff = await currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value);
+if (!staff) return Astro.redirect("/login");
+
+const panel = await buildPanel(database, bindings);
+---
+
+<Layout title="Merchandising" staff={staff}>
+  <p class="dept">Back office · merchandising</p>
+  <h1>Restock urgency &amp; today's calls</h1>
+  <p class="muted"><a href="/manage">Back to inventory</a></p>
+
+  {
+    panel.judge === "demo" ? (
+      <p class="flash" role="status">
+        <strong>Demo judge.</strong> Jev isn't configured for this store, so these scores and
+        gates come from a deterministic stand-in doing plain arithmetic on the same signals —
+        not from a judgment model. Set TYPESAFE_API_KEY to hand the judging to Jev.
+      </p>
+    ) : (
+      <p class="flash ok" role="status">
+        Judged by Jev (TypeSafe). Scores are calibrated judgments over the signals listed in
+        the reasons column.
+      </p>
+    )
+  }
+
+  <div class="scroll" tabindex="0">
+    <table aria-label="Products by restock urgency">
+      <thead>
+        <tr>
+          <th scope="col">Product</th>
+          <th scope="col" class="num">Stock</th>
+          <th scope="col" class="num">Sold (30 days)</th>
+          <th scope="col" class="num">Urgency</th>
+          <th scope="col">Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          panel.scored.map(({ signals, score }) => (
+            <tr>
+              <td>
+                <span aria-hidden="true">{signals.product.emoji}</span> {signals.product.name}
+                <br />
+                <small class="muted">{signals.product.department}</small>
+              </td>
+              <td class="num">{signals.product.stock}</td>
+              <td class="num">{signals.unitsRecent}</td>
+              <td class="num">
+                <strong>{score}</strong>
+                <meter min="0" max="100" value={score}>
+                  {score} out of 100
+                </meter>
+              </td>
+              <td>{signals.reasons.join(". ")}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <section class="panel" aria-labelledby="deal-title" style="margin-top: 28px; max-width: 760px;">
+    <h2 id="deal-title">Deal of the day</h2>
+    {
+      panel.currentDeal && (
+        <p>
+          Currently featuring: <strong>{panel.currentDeal.emoji} {panel.currentDeal.name}</strong>{" "}
+          ({formatUsd(panel.currentDeal.price_cents)})
+        </p>
+      )
+    }
+    {
+      panel.deal ? (
+        panel.deal.approved ? (
+          <>
+            <p>
+              The judge proposes <strong>{panel.deal.product.emoji} {panel.deal.product.name}</strong>{" "}
+              (urgency {panel.deal.score}, {Math.round(panel.deal.probability * 100)}% in favour).
+              Featuring is your click — the judge never changes the shop on its own.
+            </p>
+            <form method="post" action="/api/manage/feature" class="inline">
+              <input type="hidden" name="productId" value={panel.deal.product.id} />
+              <input type="hidden" name="back" value="/manage/merchandising" />
+              <button type="submit">Feature it as the deal of the day</button>
+            </form>
+          </>
+        ) : (
+          <p class="muted">
+            The judge looked at {panel.deal.product.name} and voted no (
+            {Math.round(panel.deal.probability * 100)}% in favour) — not enough stock or demand
+            to be worth the slot today.
+          </p>
+        )
+      ) : (
+        <p class="muted">No product with enough stock to feature right now.</p>
+      )
+    }
+  </section>
+
+  <section class="panel" aria-labelledby="po-title" style="margin-top: 28px; max-width: 760px;">
+    <h2 id="po-title">Purchase-order draft</h2>
+    {
+      panel.purchaseOrder ? (
+        panel.purchaseOrder.approved ? (
+          <>
+            <p>
+              Order <strong>{panel.purchaseOrder.quantity} × {panel.purchaseOrder.product.name}</strong>.
+              The draft follows the stated rule: cover the next 30 days at the recent sales
+              rate, with a floor of 10 units, minus what's on the shelf. The judge is{" "}
+              {Math.round(panel.purchaseOrder.probability * 100)}% in favour. Approving applies
+              it through the ordinary restock, so stock and history stay consistent.
+            </p>
+            <form method="post" action="/api/manage/restock" class="inline">
+              <input type="hidden" name="productId" value={panel.purchaseOrder.product.id} />
+              <input type="hidden" name="delta" value={String(panel.purchaseOrder.quantity)} />
+              <input type="hidden" name="back" value="/manage/merchandising" />
+              <button type="submit">Approve and restock</button>
+            </form>
+          </>
+        ) : (
+          <p class="muted">
+            The draft for {panel.purchaseOrder.product.name} (+{panel.purchaseOrder.quantity})
+            is on hold — the judge is only {Math.round(panel.purchaseOrder.probability * 100)}%
+            in favour, so no approval button. You can still restock it by hand from the
+            inventory page.
+          </p>
+        )
+      ) : (
+        <p class="muted">Nothing needs ordering right now.</p>
+      )
+    }
+  </section>
+</Layout>

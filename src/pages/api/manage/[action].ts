@@ -5,15 +5,18 @@ import {
   addDepartment,
   addProduct,
   adjustStock,
+  featureProduct,
   listDepartments,
   setActive,
   setOverhead,
   setPrice,
 } from "../../../lib/db";
-import { failure, notice, safeBack } from "../../../lib/http";
-import { db as database } from "../../../lib/runtime";
+import { draftDescription } from "../../../lib/drafts";
+import { failure, notice, safeBack, withParams } from "../../../lib/http";
+import { bindings, db as database } from "../../../lib/runtime";
 import {
   departmentForm,
+  draftForm,
   newProductForm,
   overheadForm,
   priceForm,
@@ -24,6 +27,10 @@ import {
 const listingForm = z.object({
   productId: z.string().trim().min(1).max(30),
   active: z.enum(["0", "1"]),
+});
+
+const featureForm = z.object({
+  productId: z.string().trim().min(1).max(30),
 });
 
 // One endpoint for every back-office change. Each action runs the same staff check first.
@@ -83,6 +90,38 @@ export const POST: APIRoute = async ({ params, request, cookies, redirect }) => 
         throw error;
       }
       return done(`Added ${parsed.data.name}.`);
+    }
+    case "feature": {
+      const parsed = readForm(featureForm, form);
+      if (!parsed.ok) return fail(parsed.message);
+      const ok = await featureProduct(conn, parsed.data.productId);
+      return ok ? done("Featured as the deal of the day.") : fail("That product doesn't exist.");
+    }
+    case "draft": {
+      const parsed = readForm(draftForm, form);
+      if (!parsed.ok) return fail(parsed.message);
+      const departments = await listDepartments(conn);
+      const department = departments.find((entry) => entry.id === parsed.data.departmentId);
+      if (!department) return fail("That department doesn't exist.");
+      const draft = await draftDescription(bindings, {
+        name: parsed.data.name,
+        department: department.name,
+      });
+      // The draft travels back as form values, never as a saved product. The manager
+      // edits it in the add-product form and saves through the usual "product" action.
+      return redirect(
+        withParams(back, {
+          dname: parsed.data.name,
+          ddept: String(department.id),
+          ddesc: draft.description,
+          demoji: draft.emoji,
+          dsrc: draft.origin.source,
+          ...(draft.origin.source === "llm"
+            ? { dprov: `${draft.origin.provider} (${draft.origin.model})` }
+            : {}),
+        }),
+        303,
+      );
     }
     case "department": {
       const parsed = readForm(departmentForm, form);

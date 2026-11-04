@@ -1,0 +1,99 @@
+---
+import Layout from "../components/Layout.astro";
+import ProductCard from "../components/ProductCard.astro";
+import { STAFF_COOKIE, currentStaff } from "../lib/auth";
+import { describeFilters, translateQuery } from "../lib/concierge";
+import { listDepartments, listProducts } from "../lib/db";
+import { bindings, db } from "../lib/runtime";
+
+const database = db();
+const ask = (Astro.url.searchParams.get("ask") ?? "").trim().slice(0, 200);
+
+const [departments, staff] = await Promise.all([
+  listDepartments(database),
+  currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value),
+]);
+
+const translated = ask ? await translateQuery(bindings, ask, departments) : null;
+const products = translated
+  ? await listProducts(database, {
+      search: translated.filters.search,
+      departmentId: translated.filters.departmentId,
+      minPriceCents: translated.filters.minPriceCents,
+      maxPriceCents: translated.filters.maxPriceCents,
+      sort: translated.filters.sort,
+    })
+  : [];
+const filterParts = translated ? describeFilters(translated.filters, departments) : [];
+---
+
+<Layout title="Concierge" staff={staff}>
+  <section class="hero" aria-labelledby="concierge-title">
+    <h1 id="concierge-title">Tell us what you're looking for.</h1>
+    <p>
+      Plain words work: “a water bottle under $30”, “the cheapest books”, “something for the
+      kitchen over $40”. The concierge turns your sentence into the shop's ordinary filters.
+    </p>
+  </section>
+
+  <form method="get" action="/concierge" class="panel" style="max-width: 760px;" role="search">
+    <div class="field">
+      <label for="ask">Describe what you're looking for</label>
+      <input
+        id="ask"
+        name="ask"
+        type="text"
+        value={ask}
+        maxlength="200"
+        placeholder="a gift under $50 for someone who hikes"
+        autocomplete="off"
+      />
+    </div>
+    <div style="margin-top: 12px;"><button type="submit">Ask the concierge</button></div>
+  </form>
+
+  {
+    translated && (
+      <section aria-live="polite" style="margin-top: 24px;">
+        <p class="muted">
+          You asked: “{ask}”
+          {filterParts.length > 0 && (
+            <>
+              {" "}— we read that as: <strong>{filterParts.join(" · ")}</strong>
+            </>
+          )}
+        </p>
+        {translated.origin.source === "fallback" ? (
+          <p class="flash" role="status">
+            Smart search isn't switched on for this store, so we matched your words the plain
+            way — keywords, departments and prices — instead. The filters above are exactly
+            what ran.
+          </p>
+        ) : (
+          <p class="muted">
+            Translated by {translated.origin.provider} ({translated.origin.model}), checked
+            against the shop's real departments and price range before it ran.
+          </p>
+        )}
+        {products.length === 0 ? (
+          <p class="empty">
+            Nothing matches that. Try fewer words, or <a href="/">browse everything</a>.
+          </p>
+        ) : (
+          <>
+            <p class="muted">
+              {products.length} {products.length === 1 ? "product" : "products"}
+            </p>
+            <ul class="grid">
+              {products.map((product) => (
+                <li>
+                  <ProductCard product={product} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+    )
+  }
+</Layout>
