@@ -4,3 +4,12 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 # Comma-separated GitHub logins that may open the back office (managers and supervisors).
 STAFF_GITHUB_LOGINS=
+# AI features (all optional — leave unset and the app uses its labelled fallbacks).
+# Any OpenAI-compatible chat provider works by configuration alone, e.g.
+# AI_BASE_URL=https://ollama.com/v1 (Ollama Cloud) or http://localhost:11434/v1 (local Ollama).
+AI_PROVIDER=
+AI_BASE_URL=
+AI_MODEL=
+AI_API_KEY=
+# Jev by TypeSafe, the merchandising judge (optional — without it, a labelled demo judge answers).
+TYPESAFE_API_KEY=

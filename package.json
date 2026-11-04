@@ -21,6 +21,7 @@
     "db:reset:local": "rm -rf .wrangler/state && CI=1 wrangler d1 migrations apply DB --local && wrangler d1 execute DB --local --file=seed/products.sql",
     "staff:local": "bun scripts/local-staff-session.ts",
     "gif": "node scripts/record-gif.ts",
+    "gif:ai": "node scripts/record-ai-gif.ts",
     "deploy": "astro build && wrangler deploy -c dist/server/wrangler.json",
     "smoke": "node scripts/smoke.ts",
     "validate": "bun run lint && bun run typecheck && bun run test && bun run build && bun run knip && bun run e2e",

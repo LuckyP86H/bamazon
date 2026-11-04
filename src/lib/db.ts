@@ -30,11 +30,12 @@ export interface ProductRow {
   stock: number;
   product_sales_cents: number;
   active: number;
+  featured: number;
 }
 
 const PRODUCT_COLUMNS = `
   p.id, p.name, p.description, p.emoji, p.department_id, d.name AS department,
-  p.price_cents, p.stock, p.product_sales_cents, p.active`;
+  p.price_cents, p.stock, p.product_sales_cents, p.active, p.featured`;
 
 const SORTS = {
   featured: "p.name COLLATE NOCASE ASC",
@@ -52,6 +53,8 @@ const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\$
 export interface CatalogQuery {
   search?: string;
   departmentId?: number;
+  minPriceCents?: number;
+  maxPriceCents?: number;
   sort?: SortKey;
   includeInactive?: boolean;
 }
@@ -68,6 +71,14 @@ export async function listProducts(db: Db, query: CatalogQuery = {}): Promise<Pr
   if (query.departmentId !== undefined) {
     where.push("p.department_id = ?");
     params.push(query.departmentId);
+  }
+  if (query.minPriceCents !== undefined) {
+    where.push("p.price_cents >= ?");
+    params.push(query.minPriceCents);
+  }
+  if (query.maxPriceCents !== undefined) {
+    where.push("p.price_cents <= ?");
+    params.push(query.maxPriceCents);
   }
   const order = SORTS[query.sort ?? "featured"];
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -266,6 +277,55 @@ export async function setActive(db: Db, id: string, active: boolean): Promise<bo
     id,
   ]);
   return changes === 1;
+}
+
+/** The current deal of the day, if a manager has featured one. */
+export async function getFeaturedProduct(db: Db): Promise<ProductRow | null> {
+  return db.first<ProductRow>(
+    `SELECT ${PRODUCT_COLUMNS} FROM products p JOIN departments d ON d.id = p.department_id
+     WHERE p.featured = 1 AND p.active = 1`,
+  );
+}
+
+/**
+ * Features one product as the deal of the day. Clearing every other flag in the same
+ * atomic batch is what keeps "at most one featured product" true.
+ */
+export async function featureProduct(db: Db, id: string): Promise<boolean> {
+  const product = await db.first<{ id: string }>("SELECT id FROM products WHERE id = ?", [id]);
+  if (!product) return false;
+  await db.batch([
+    statement("UPDATE products SET featured = 0 WHERE featured = 1"),
+    statement("UPDATE products SET featured = 1 WHERE id = ?", id),
+  ]);
+  return true;
+}
+
+export interface SalesStats {
+  productId: string;
+  /** Units sold in orders placed within the last `days` days. */
+  unitsRecent: number;
+  revenueRecentCents: number;
+}
+
+/** Per-product sales over a recent window, from the order history the store already keeps. */
+export async function productSalesStats(db: Db, days = 30): Promise<Map<string, SalesStats>> {
+  const rows = await db.all<{ product_id: string; units: number; revenue: number }>(
+    `SELECT oi.product_id AS product_id,
+            COALESCE(SUM(oi.quantity), 0) AS units,
+            COALESCE(SUM(oi.quantity * oi.unit_price_cents), 0) AS revenue
+     FROM order_items oi
+     JOIN orders o ON o.id = oi.order_id
+     WHERE o.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)
+     GROUP BY oi.product_id`,
+    [`-${days} days`],
+  );
+  return new Map(
+    rows.map((row) => [
+      row.product_id,
+      { productId: row.product_id, unitsRecent: row.units, revenueRecentCents: row.revenue },
+    ]),
+  );
 }
 
 export async function addDepartment(db: Db, name: string, overheadCents: number): Promise<void> {

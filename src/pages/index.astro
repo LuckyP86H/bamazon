@@ -2,7 +2,8 @@
 import Layout from "../components/Layout.astro";
 import ProductCard from "../components/ProductCard.astro";
 import { STAFF_COOKIE, currentStaff } from "../lib/auth";
-import { isSortKey, listDepartments, listProducts } from "../lib/db";
+import { getFeaturedProduct, isSortKey, listDepartments, listProducts } from "../lib/db";
+import { formatUsd } from "../lib/money";
 import { db } from "../lib/runtime";
 
 const database = db();
@@ -12,10 +13,11 @@ const sort = isSortKey(sortParam) ? sortParam : "featured";
 const deptParam = Number(Astro.url.searchParams.get("dept"));
 const departmentId = Number.isInteger(deptParam) && deptParam > 0 ? deptParam : undefined;
 
-const [products, departments, staff] = await Promise.all([
+const [products, departments, staff, featured] = await Promise.all([
   listProducts(database, { search: q, departmentId, sort }),
   listDepartments(database),
   currentStaff(database, Astro.cookies.get(STAFF_COOKIE)?.value),
+  getFeaturedProduct(database),
 ]);
 const allHref = (extra: Record<string, string | undefined>) => {
   const params = new URLSearchParams();
@@ -35,6 +37,29 @@ const allHref = (extra: Record<string, string | undefined>) => {
     <h1 id="hero-title">Everything you were looking for, in one cart.</h1>
     <p>Electronics, books, clothing, kitchen and sports. Prices are final and stock is live.</p>
   </section>
+
+  {
+    featured && (
+      <section class="panel" aria-labelledby="deal-title" style="margin-bottom: 20px;">
+        <p class="dept">Deal of the day</p>
+        <h2 id="deal-title">
+          {featured.emoji} {featured.name} — {formatUsd(featured.price_cents)}
+        </h2>
+        <p>{featured.description}</p>
+        <p>
+          <a href={`/products/${encodeURIComponent(featured.id)}`}>See the deal</a>
+        </p>
+      </section>
+    )
+  }
+
+  <form method="get" action="/concierge" class="panel" role="search" style="margin-bottom: 20px;">
+    <div class="field">
+      <label for="ask">Or describe what you're looking for</label>
+      <input id="ask" name="ask" type="text" maxlength="200" placeholder="a gift under $50 for someone who hikes" autocomplete="off" />
+    </div>
+    <div style="margin-top: 12px;"><button type="submit" class="ghost">Ask the concierge</button></div>
+  </form>
 
   <nav class="chips" aria-label="Departments">
     <a class="chip" href={allHref({ dept: undefined })} aria-current={departmentId === undefined ? "true" : undefined}>All</a>
